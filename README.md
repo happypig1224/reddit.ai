@@ -1,329 +1,341 @@
-# 🚀 Reddit Karma Pilot
+# Reddit Karma Pilot
 
-> **新号养号半自动防封中控系统**  
-> 通过人机协同、智能评论建议、风控防护和异步排期机制，帮助 Reddit 新账号安全积累社区信誉。
+> 基于 FastAPI 与 Vue 3 构建的 Reddit 账号信誉冷启动与合规中控系统。系统通过人机协同（Human-in-the-Loop）工作流、确定性生命周期状态机与文本特征去噪算法，为海外社区运营提供安全、可审计的交互管理能力。
 
----
+[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com/)
+[![Vue](https://img.shields.io/badge/Vue-3.4+-4FC08D.svg)](https://vuejs.org/)
+[![Vite](https://img.shields.io/badge/Vite-5.0+-646CFF.svg)](https://vitejs.dev/)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1.svg)](https://www.mysql.com/)
+[![PRAW](https://img.shields.io/badge/PRAW-7.7+-FF4500.svg)](https://praw.readthedocs.io/)
+[![Tests](https://img.shields.io/badge/Tests-31%20Passed-brightgreen.svg)](tests/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## 📊 项目状态
-
-| 状态 | 详情 |
-|------|------|
-| **当前版本** | v1.0.0 |
-| **项目阶段** | ✅ 生产就绪 |
-| **总体进度** | 100% |
-| **测试覆盖** | 核心流程 100% 通过 |
-| **文档完整度** | 100% |
-
----
-
-## 🎯 核心功能
-
-### 1️⃣ 账号与阶段管理
-- 多账号矩阵管理
-- 4 个成长阶段（STAGE_1 ~ STAGE_4）
-- 每日配额动态调整
-- Karma 实时监控
-
-### 2️⃣ 智能帖子监控
-- 实时抓取 Reddit 新帖和热帖
-- AI 意图打分与推荐
-- 高互动潜力帖子优先
-
-### 3️⃣ 评论协助系统
-- 预生成符合语境的英文评论建议
-- 评论模板库（24h 去重）
-- 人工审核 + 一键外发
-
-### 4️⃣ 多层风控防护
-- 敏感词过滤与外链拦截
-- 频率限制（5~30 分钟随机延迟）
-- 429 熔断保护
-- Shadowban 实时探测
-
-### 5️⃣ 异步调度引擎
-- APScheduler 精确排期
-- 账号互斥执行
-- 自动重试与错误恢复
-- 完整的审计日志
+<div align="center">
+  <img src="./docs/assets/workbench.png" alt="Reddit Karma Pilot 工作台全景" width="100%" />
+  <p><em>图 1：人机协同审核工作台界面与实时候选讨论流</em></p>
+</div>
 
 ---
 
-## 🏗️ 系统架构
+## 目录
+
+- [核心架构与技术分层](#核心架构与技术分层)
+- [业务流水线与状态机设计](#业务流水线与状态机设计)
+- [风控防御与文本去噪算法](#风控防御与文本去噪算法)
+- [领域模型与存储设计](#领域模型与存储设计)
+- [工程目录结构](#工程目录结构)
+- [环境基线与依赖要求](#环境基线与依赖要求)
+- [配置字典说明](#配置字典说明)
+- [本地构建与运行指南](#本地构建与运行指南)
+- [自动化测试矩阵](#自动化测试矩阵)
+- [核心 API 端点契约](#核心-api-端点契约)
+- [安全边界与异常处理](#安全边界与异常处理)
+
+---
+
+## 核心架构与技术分层
+
+系统采用前后端解耦架构，通过异步网关、连接池隔离与定时调度组件保障数据操作的高内聚与低耦合。
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│          Vue 3 前端中控 (Vite + Element Plus)          │
-│    [工作台] [账号] [社区] [模板] [风控] [日志] [设置]    │
-└──────────────────────┬──────────────────────────────────┘
-                       │ HTTP/JSON (CORS)
-┌──────────────────────▼──────────────────────────────────┐
-│         FastAPI 后端网关 (Python 3.11+)                │
-│    Pydantic v2 参数校验 / 全局异常处理 / 跨域中间件      │
-└──────────────────────┬──────────────────────────────────┘
-      │                │                │
-      ▼                ▼                ▼
- ┌─────────┐  ┌──────────┐  ┌─────────────┐
- │ PRAW    │  │APScheduler   │ SQLAlchemy  │
- │实例池   │  │异步排期  │ ORM         │
- └─────────┘  └──────────┘  └─────────────┘
-      │                │                │
-      └────────────┬───┴────────────┬───┘
-                   ▼
-         ┌──────────────────────┐
-         │  MySQL 8.0 Database  │
-         │  (8张表, utf8mb4)   │
-         └──────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│             Vue 3 前端应用 (Vite + Pinia)              │
+│    [工作台]   [账号矩阵]   [社区监控]   [模板管理]   [审计日志]    │
+└───────────────────────────┬────────────────────────────┘
+                            │ RESTful JSON (CORS)
+┌───────────────────────────▼────────────────────────────┐
+│              FastAPI 异步服务层 (Python 3.11+)          │
+│   Pydantic v2 参数校验 / 全局异常捕获 / 跨域与鉴权中间件  │
+└──────┬────────────────────┬────────────────────┬───────┘
+       │                    │                    │
+┌──────▼──────┐      ┌──────▼──────┐      ┌──────▼──────┐
+│  PRAW 实例池 │      │ APScheduler │      │ SQLAlchemy  │
+│  账号连接复用 │      │ 异步延迟调度 │      │ 异步 ORM 引擎 │
+└──────┬──────┘      └──────┬──────┘      └──────┬──────┘
+       │                    │                    │
+       └────────────────────┼────────────────────┘
+                            ▼
+               ┌────────────────────────┐
+               │    MySQL 8.0 关系存储   │
+               │   utf8mb4 字符编码保证  │
+               └────────────────────────┘
+```
+
+1. **前端交互层**：基于 Vue 3 组合式 API 与 Pinia 状态树构建，集成工作台候选流双屏联动、实时意图评分指示器与审计日志查询。
+2. **后端网关层**：FastAPI 提供统一 RESTful 契约，依托 Pydantic v2 实现请求体与响应体的强类型约束。
+3. **服务与调度层**：
+   - **PRAW 实例连接池**：维护 Reddit API 会话生命周期，支持账号独立的代理接入配置。
+   - **APScheduler 调度引擎**：执行延迟投递队列，避免短时间内突发网络请求引发目标平台风控。
+4. **持久化存储层**：基于 MySQL 8.0，通过 SQLAlchemy 异步连接池（aiomysql）支撑高频读写，全库字符集采用 `utf8mb4` 保障原生 Emoji 存储一致性。
+
+---
+
+## 业务流水线与状态机设计
+
+### 1. 账号生命周期状态机
+
+系统定义了 4 个渐进式成长阶段，各阶段严格绑定每日配额上限与调用间隔：
+
+```
+[ STAGE_1: 观察潜伏期 ] ──── 达到信誉与天数门槛 ───► [ STAGE_2: 试探破冰期 ]
+  • 日上限: 0 条                                      • 日上限: 1~3 条
+  • 仅允许浏览与健康握手                               • 随机间隔: 45~60 分钟
+                                                             │
+                                                     稳定增长 7 天以上
+                                                             │
+                                                             ▼
+[ STAGE_4: 成熟运营期 ] ◄─── 达到高权重指标门槛 ─── [ STAGE_3: 稳健增长期 ]
+  • 日上限: 10~15 条                                  • 日上限: 5~8 条
+  • 随机间隔: 10~20 分钟                              • 随机间隔: 20~30 分钟
+```
+
+- **STAGE_1（冷启动观察期）**：账号注册初期，系统禁止派发外发任务，仅允许执行 PRAW 接口连通性验证。
+- **STAGE_2（试探破冰期）**：日配额 1 至 3 条，单次任务之间强制施加 45 至 60 分钟的高离散度随机静默。
+- **STAGE_3（稳健增长期）**：日配额提升至 5 至 8 条，最小间隔压缩至 20 至 30 分钟。
+- **STAGE_4（成熟运营期）**：日配额最高开放至 15 条，单日调用总量受全局断路器保护。
+
+### 2. 调度任务状态流转
+
+任务调度状态流转遵循不可逆原则，所有终止态均持久化入库供追踪：
+
+```
+[ PENDING: 待执行 ] ──► [ SCHEDULED: 已排期 ] ──► [ EXECUTING: 执行中 ]
+                                                        │
+                      ┌─────────────────────────────────┴─────────────────────────────────┐
+                      ▼                                                                   ▼
+             [ SUCCESS: 执行成功 ]                                               [ FAILED: 任务失败 ]
 ```
 
 ---
 
-## ⚡ 快速启动
+## 风控防御与文本去噪算法
 
-### 前置条件
-- Python 3.11+ 
-- Node.js 18+
-- MySQL 8.0+
+系统内置多层确定性防御与语义去噪流水线，降低自动化操作引发社区反作弊拦截的概率。
 
-### 5分钟启动
+### 1. 文本合规拦截规则
 
-#### 1. 启动后端
+在待审评论进入排期前，内容过滤器执行前置确定性检查：
+- **外部链接阻断**：正则匹配所有带协议头及顶级域名的裸链接（如 `http://`, `https://`, `.com`, `.io`），一律拦截。
+- **引流与私密联系阻断**：识别 `DM me`, `check bio`, `WhatsApp`, `Telegram`, `vx:` 等诱导私聊特征词，直接标记为违规。
+- **模板 24 小时冷却去重**：同一评论模板在 24 小时内禁止在相同社区或相同帖子重复应用。
+
+### 2. 文本特征去噪算法（De-AI Pipeline）
+
+系统通过预处理过滤典型大语言模型生成指纹：
+- **学术与辩证腔消除**：过滤 "delve into", "it is undeniable that", "comprehensive ecosystem" 等书面高频词。
+- **结构冒号与连接词消除**：剔除段首总结性提示语（如 "Conclusion:", "Here is the key takeaway:"）与机械并列连接词。
+- **语态纠正**：将多重从句与被动句式还原为第一人称口语化表达，保留 Reddit 社区常见的非正式交流语法。
+
+### 3. 影子封禁探测器（Shadowban Probe）
+
+系统通过未鉴权的公开网络视图检测目标账号的真实存活状态：
+- 请求 `https://www.reddit.com/user/{username}/about.json` 公开节点。
+- 若接口返回 HTTP 404 或 `{"error": 404}`，状态机将该账号标记为 `SHADOWBANNED`，自动熔断该账号的所有待派发队列。
+
+<div align="center">
+  <img src="./docs/assets/logs.png" alt="系统审计与风控日志" width="100%" />
+  <p><em>图 2：审计日志与风控拦截记录追踪界面</em></p>
+</div>
+
+---
+
+## 领域模型与存储设计
+
+数据库共包含 8 张核心业务与审计表：
+
+| 表名 | 存储用途 | 核心字段与约束说明 |
+| :--- | :--- | :--- |
+| `accounts` | Reddit 账号矩阵 | `username` (UK), `stage`, `daily_comment_limit`, `client_secret` (AES 加密) |
+| `subreddits` | 目标监控社区 | `name` (UK), `is_enabled`, `daily_task_limit`, `min_karma_requirement` |
+| `candidate_posts` | 抓取候选待审帖子 | `reddit_post_id` (UK), `title`, `recommendation_score`, `review_status` |
+| `comment_templates` | 评论语料模板库 | `content`, `category`, `last_used_at`, `usage_count` |
+| `dispatch_tasks` | 异步调度任务队列 | `account_id` (FK), `post_id` (FK), `status`, `scheduled_at`, `executed_at` |
+| `risk_settings` | 全局风控规则表 | `daily_comment_cap_global`, `cooldown_minutes_min`, `url_filter_enabled` |
+| `audit_logs` | 操作全量审计记录 | `account_id`, `action_type`, `status`, `response_payload`, `created_at` |
+| `schema_version` | 数据库版本迁移记账 | `version` (PK), `description`, `applied_at` |
+
+---
+
+## 工程目录结构
+
+```
+reddit.ai/
+├── app/                              # 后端应用核心目录
+│   ├── api/v1/                       # RESTful API 端点
+│   │   ├── endpoints/                # 业务模块端点 (accounts, workbench, subreddits 等)
+│   │   └── api.py                    # 路由统一注册中心
+│   ├── core/                         # 核心基础设施
+│   │   ├── config.py                 # Pydantic Settings 配置加载
+│   │   ├── crypto.py                 # AES-256 敏感凭据对称加解密
+│   │   └── security.py               # 内容安全过滤与风控规则断言
+│   ├── db/                           # 数据库连接层
+│   │   ├── base.py                   # ORM 基类与元数据声明
+│   │   └── session.py                # 异步与同步数据库 Session 引擎
+│   ├── models/                       # SQLAlchemy 数据映射模型
+│   ├── schemas/                      # Pydantic 请求与响应契约 DTO
+│   ├── services/                     # 领域服务层
+│   │   ├── de_ai_generator.py        # 文本特征去噪生成服务
+│   │   ├── feed_crawler.py           # 帖子抓取与意图推荐评分器
+│   │   ├── praw_pool.py              # PRAW 实例连接池管理器
+│   │   ├── shadowban_probe.py        # 存活探测与影子封禁检测
+│   │   └── task_dispatcher.py        # 异步队列派发调度器
+│   └── main.py                       # FastAPI 应用初始化与中间件配置
+│
+├── frontend/                         # 前端工作台应用 (Vue 3 + Vite)
+│   ├── src/
+│   │   ├── views/                    # 8 大核心业务视图组件
+│   │   ├── stores/                   # Pinia 状态树管理 (karmaStore.js)
+│   │   ├── router/                   # 路由导航配置
+│   │   └── App.vue                   # 主交互框架与侧边导航
+│   ├── package.json                  # 前端依赖配置清单
+│   └── vite.config.js                # Vite 打包与代理配置
+│
+├── docs/                             # 静态文档与架构资源
+│   └── assets/                       # 架构示意图与系统运行全景截图
+│
+├── migrations/                       # 结构化数据库迁移系统
+│   ├── V1.0.0__init_schema.sql       # 初始数据表结构
+│   ├── V1.0.1__seed_initial_data.sql # 基础预置元数据
+│   ├── V1.0.2__optimize_indexes.sql  # 高频查询复合索引优化
+│   └── migrate.py                    # 迁移执行器
+│
+├── tests/                            # 自动化测试套件
+│   ├── conftest.py                   # Pytest 共享 fixture
+│   ├── test_api_v1.py                # 核心 API 全链路集成测试
+│   └── test_db_baseline.py           # 物理表结构、索引与约束基线测试
+│
+├── .env.example                      # 生产与开发环境配置模板
+├── .gitignore                        # Git 规范忽略规则
+├── requirements.txt                  # Python 依赖清单
+├── start_all.bat                     # Windows 一键全栈启动脚本
+├── start_backend.py                  # 后端专属启动脚本
+└── start_web.bat                     # 前端专属启动脚本
+```
+
+---
+
+## 环境基线与依赖要求
+
+系统开发与部署依赖以下环境：
+
+- **Python**：3.11 及以上（已在 3.14.7 完成兼容性验证）
+- **Node.js**：18.0 及以上（推荐 20.x 或 24.x LTS）
+- **MySQL**：8.0 及以上
+- **包管理工具**：pip 23.0+，npm 9.0+
+
+---
+
+## 配置字典说明
+
+项目根目录提供 `.env.example` 配置文件模板。执行部署前需复制为 `.env` 并填写对应配置项：
+
+| 配置键名 | 说明 | 缺省值 / 示例 | 是否必填 |
+| :--- | :--- | :--- | :--- |
+| `SERVER_PORT` | 后端服务监听端口 | `8001` | 否 |
+| `DB_HOST` | MySQL 数据库连接地址 | `127.0.0.1` | **是** |
+| `DB_PORT` | MySQL 数据库端口 | `3306` | **是** |
+| `DB_USER` | 数据库登录用户 | `root` | **是** |
+| `DB_PASSWORD` | 数据库登录密码 | - | **是** |
+| `DB_NAME` | 数据库名称 | `reddit_karma_pilot` | **是** |
+| `ENCRYPTION_SECRET_KEY` | 对称凭据加解密密钥 (Fernet/AES-256) | Base64 编码的 32 字节密钥 | **是** |
+| `VITE_API_BASE_URL` | 前端反向代理或 API 通信基址 | `http://127.0.0.1:8001` | 否 |
+
+---
+
+## 本地构建与运行指南
+
+### 1. 数据库初始化
+
+创建空数据库后执行迁移工具：
+
 ```bash
-cd reddit.ai
+# 登录 MySQL 创建数据库
+mysql -u root -p -e "CREATE DATABASE reddit_karma_pilot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 执行迁移版本应用
+python migrations/migrate.py
+```
+
+### 2. 后端服务启动
+
+```bash
+# 安装 Python 运行依赖
 pip install -r requirements.txt
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+
+# 启动后端 API 服务
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
 ```
 
-#### 2. 启动前端（新终端）
+验证健康状态端点：
 ```bash
-cd reddit.ai/frontend
+curl -s http://127.0.0.1:8001/health
+# 返回: {"status":"healthy","version":"1.0.0","project":"Reddit Karma Pilot Backend"}
+```
+
+### 3. 前端服务启动
+
+```bash
+# 进入前端工程目录
+cd frontend
+
+# 安装依赖
 npm install
+
+# 启动本地开发服务
 npm run dev
 ```
 
-#### 3. 验证
-```
-✅ 后端: http://127.0.0.1:8000/health
-✅ 前端: http://127.0.0.1:5173
-✅ API文档: http://127.0.0.1:8000/docs
-```
+前端默认运行于 `http://127.0.0.1:5173`。
 
 ---
 
-## 📚 文档导航
+## 自动化测试矩阵
 
-| 文档 | 适合人群 | 内容 |
-|------|--------|------|
-| **QUICK_REFERENCE.md** | 🏃 新手快速入门 | 常用命令、API 速查、故障排查 |
-| **PROJECT_STATUS.md** | 📊 项目经理 | 完成情况、统计指标、下一步规划 |
-| **INTEGRATION_TEST_REPORT.md** | ✅ QA/测试 | 测试结果、验证清单、性能指标 |
-| **DEPLOYMENT_GUIDE.md** | 🚀 DevOps/运维 | Docker 部署、生产配置、监控告警 |
-| **REDDIT_KARMA_PILOT_IMPLEMENTATION_PLAN.md** | 🏗️ 架构师 | 完整技术方案、数据库设计、API 规范 |
+测试用例位于 `tests/` 目录，涵盖 API 契约断言与物理数据库完整性断言：
 
----
-
-## 🔗 核心 API 端点
-
-```
-# 账号管理
-GET    /api/v1/accounts
-POST   /api/v1/accounts
-PATCH  /api/v1/accounts/{id}/stage
-POST   /api/v1/accounts/{id}/test-handshake
-
-# 社区管理
-GET    /api/v1/subreddits
-POST   /api/v1/subreddits
-PUT    /api/v1/subreddits/{id}/toggle
-
-# 工作台（核心）
-GET    /api/v1/workbench/candidates
-POST   /api/v1/workbench/candidates/{id}/action
-
-# 模板库
-GET    /api/v1/templates
-POST   /api/v1/templates
-DELETE /api/v1/templates/{id}
-
-# 风控
-GET    /api/v1/risk-control/settings
-PUT    /api/v1/risk-control/settings
-POST   /api/v1/risk-control/circuit-breaker
-
-# 日志
-GET    /api/v1/logs
-POST   /api/v1/logs/{id}/probe-shadowban
-```
-
-**📖 完整 API 文档**: http://127.0.0.1:8000/docs
-
----
-
-## 💾 数据库结构
-
-```
-accounts            - Reddit 账号矩阵
-subreddits          - 目标社区池
-candidate_posts     - 候选待审帖子
-comment_templates   - 评论模板库
-dispatch_tasks      - 异步排期任务
-audit_logs          - 审计与存活日志
-risk_settings       - 风控规则配置
-schema_version      - 迁移版本追踪
-```
-
----
-
-## 🔐 安全特性
-
-✅ **敏感词过滤** - 自动拦截违禁词和营销内容  
-✅ **外链拦截** - 100% 过滤 URL 和私域联系方式  
-✅ **AES-256 加密** - OAuth 凭据安全存储  
-✅ **频率限制** - 5~30 分钟随机延迟防风控  
-✅ **断路器保护** - 429 自动熔断机制  
-✅ **Shadowban 探测** - 15 分钟后自动验证评论存活状态  
-✅ **CORS 配置** - 前端跨域访问白名单  
-✅ **参数校验** - Pydantic v2 强类型约束  
-
----
-
-## 📈 测试验证
-
-### 快速验证 ✅
-- [x] Python 依赖完整
-- [x] Node.js 环境正常
-- [x] MySQL 连接成功
-- [x] 后端启动成功
-- [x] 前端启动成功
-
-### 集成测试 ✅
-- [x] 6/6 API 端点测试通过
-- [x] 8/8 数据库表验证通过
-- [x] 前后端通信正常
-- [x] 核心业务流程验证通过
-
-**详见**: INTEGRATION_TEST_REPORT.md
-
----
-
-## 🚀 部署到生产
-
-### Docker 一键部署
 ```bash
-docker-compose up -d
+# 执行全量自动化测试套件
+pytest -v
 ```
 
-### Nginx 反向代理
-```nginx
-upstream backend {
-  server 127.0.0.1:8000;
-}
+测试覆盖范围一览：
 
-server {
-  listen 80;
-  server_name api.yourdomain.com;
-
-  location / {
-    proxy_pass http://backend;
-    proxy_set_header X-Real-IP $remote_addr;
-  }
-}
-```
-
-**详见**: DEPLOYMENT_GUIDE.md
+| 测试模块 | 用例数 | 覆盖核心逻辑 |
+| :--- | :--- | :--- |
+| `test_api_v1.py` | 17 | 账号 CRUD、凭证脱敏安全、阶段迁移配额同步、PRAW 握手状态、工作台审批排期、外链拦截、私密联系拦截、Stage 1 零配额防御、429 断路器熔断 |
+| `test_db_baseline.py` | 14 | 8 张表物理结构验证、utf8mb4 字符编码与原生 Emoji 保真度断言、唯一索引约束、外键级联行为、高频复合索引检索效率 |
+| **总计** | **31** | **全流程断言通过率 100%** |
 
 ---
 
-## 🛠️ 技术栈
+## 核心 API 端点契约
 
-| 层级 | 技术 | 版本 |
-|-----|------|------|
-| **前端** | Vue 3 / Vite / Element Plus / Pinia | Latest |
-| **后端** | FastAPI / SQLAlchemy / PRAW / APScheduler | 0.115+ / 2.0+ / 7.7+ / 3.10+ |
-| **数据库** | MySQL / InnoDB | 8.0+ |
-| **部署** | Docker / Docker Compose / Nginx | 20+ |
-
----
-
-## 📊 项目统计
-
-```
-后端代码     ~2000+ 行 Python
-前端代码     ~1500+ 行 Vue 3 + TypeScript
-数据库       8 张表 / 21 条种子数据
-API 端点     15+ 个接口
-测试覆盖     核心流程 100%
-文档         5 个完整 Markdown 文档
-```
+| 业务域 | 请求方法 | 端点路径 | 功能描述 |
+| :--- | :--- | :--- | :--- |
+| **系统检测** | `GET` | `/health` | 后端服务与调度器就绪探针 |
+| **账号管理** | `GET` | `/api/v1/accounts` | 获取所有接入账号矩阵及其养号阶段 |
+| **账号管理** | `POST` | `/api/v1/accounts` | 录入并绑定新 Reddit 凭据（敏感字段落盘加密） |
+| **账号管理** | `PATCH` | `/api/v1/accounts/{id}/stage` | 变更账号成长阶段并同步调整配额基线 |
+| **工作台** | `GET` | `/api/v1/workbench/candidates` | 获取高推荐分候选帖子流 |
+| **工作台** | `POST` | `/api/v1/workbench/candidates/{id}/action` | 人工审核通过并进入异步延迟队列 |
+| **社区池** | `GET` | `/api/v1/subreddits` | 获取受监控的目标社区清单 |
+| **社区池** | `PUT` | `/api/v1/subreddits/{id}/toggle` | 启用或停用特定社区的任务派发 |
+| **模板库** | `GET` | `/api/v1/templates` | 查询已沉淀的评论模板及冷却状态 |
+| **风控配置** | `GET` | `/api/v1/risk-control/settings` | 读取全局断路器阈值与过滤开关 |
+| **审计日志** | `GET` | `/api/v1/logs` | 分页检索操作审计与网络交互日志 |
 
 ---
 
-## 🎓 学习路径
+## 安全边界与异常处理
 
-**第一步**: 阅读 QUICK_REFERENCE.md （5分钟）  
-**第二步**: 本地启动系统 （5分钟）  
-**第三步**: 访问 http://127.0.0.1:5173 （2分钟）  
-**第四步**: 阅读 REDDIT_KARMA_PILOT_IMPLEMENTATION_PLAN.md （20分钟）  
-**第五步**: 查看 INTEGRATION_TEST_REPORT.md 验证结果 （10分钟）  
-
-**总计**: ~1小时内完全掌握系统！
+1. **凭证脱敏与加密隔离**：`client_secret` 在入库前通过 Fernet（AES-256-CBC）对称加密，API 响应强行脱敏为掩码格式，杜绝明文凭据泄漏。
+2. **频率限制与断路器机制**：当目标 Reddit 接口抛出 `429 Too Many Requests` 时，系统自动触发熔断状态，暂停对应账号的排期分发，防止账号被平台判定为恶意灌水。
+3. **不可替代的人工审批点（Human-in-the-Loop）**：系统不对外提供无人值守的全自动批量发帖接口，所有评论生成建议必须由人工在工作台二次确认后方可排期。
+4. **非目标场景（Non-Goals）**：本系统不提供任何绕过目标平台反爬虫验证码的破解工具，不提供账号批量注册功能，不提供诱导破坏社区规则的黑帽功能。
 
 ---
 
-## 🤝 贡献指南
+## 技术支持与开源协议
 
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
----
-
-## 📞 技术支持
-
-- 🐛 **Bug 报告**: 创建 Issue
-- 💡 **功能建议**: 创建 Discussion
-- 📖 **文档改进**: 提交 PR
-- ❓ **技术问题**: 查看 QUICK_REFERENCE.md 的"常见问题"
-
----
-
-## 📝 更新日志
-
-### v1.0.0 (2026-11-25) ✅
-- ✨ 完整的系统架构
-- ✨ 15+ 个 API 端点
-- ✨ 专业化 UI/UX
-- ✨ 多层风控防护
-- ✨ 100% 文档覆盖
-
-### v1.1.0 (规划中)
-- Redis 缓存集成
-- WebSocket 实时通知
-- 高级分析仪表板
-- 批量账号导入
-
----
-
-## 📄 许可证
-
-MIT License - 详见 LICENSE 文件
-
----
-
-## 🙏 致谢
-
-感谢所有为这个项目做出贡献的开发者和测试人员。
-
----
-
-**🎉 Reddit Karma Pilot - 新号养号半自动防封中控系统**
-
-*打造更安全、更高效的 Reddit 账号养成方案*
-
----
-
-**最后更新**: 2026-11-25  
-**状态**: ✅ 生产就绪  
-**版本**: 1.0.0
+本项目基于 [MIT License](LICENSE) 开源协议发布。
