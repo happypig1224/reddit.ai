@@ -2,6 +2,7 @@
 
 > 基于 FastAPI 与 Vue 3 构建的 Reddit 账号信誉冷启动与合规中控系统。系统通过人机协同（Human-in-the-Loop）工作流、确定性生命周期状态机与文本特征去噪算法，为海外社区运营提供安全、可审计的交互管理能力。
 
+[![CI Pipeline Gate](https://github.com/happypig1224/reddit.ai/actions/workflows/ci.yml/badge.svg)](https://github.com/happypig1224/reddit.ai/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Vue](https://img.shields.io/badge/Vue-3.4+-4FC08D.svg)](https://vuejs.org/)
@@ -313,6 +314,12 @@ pytest -v
 | `test_api_v1.py` | 17 | 账号 CRUD、凭证脱敏安全、阶段迁移配额同步、PRAW 握手状态、工作台审批排期、外链拦截、私密联系拦截、Stage 1 零配额防御、429 断路器熔断 |
 | `test_db_baseline.py` | 14 | 8 张表物理结构验证、utf8mb4 字符编码与原生 Emoji 保真度断言、唯一索引约束、外键级联行为、高频复合索引检索效率 |
 | **总计** | **31** | **全流程断言通过率 100%** |
+
+### 持续集成流水线 (GitHub Actions)
+
+项目配置了企业级自动化持续集成门禁（[ci.yml](.github/workflows/ci.yml)），在代码推送与 Pull Request 阶段强制执行质量拦截：
+- **后端双版本测试矩阵**：在 Python 3.11 与 3.12 双版本下启动 MySQL 8.0 真实服务容器，自动执行数据库无损迁移与 31 项自动化用例断言。
+- **前端生产构建门禁**：在 Node.js 20 环境下执行 `npm ci` 与 `npm run build`，严格校验 Vite 客户端打包产物与文件完整性。
 
 ---
 
