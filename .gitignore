@@ -1,0 +1,71 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Python cache & compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Frontend build outputs
+dist/
+frontend/dist/
+.vite/
+frontend/.vite/
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Logs & Databases
+*.log
+logs/
+*.sqlite
+*.sqlite3
+*.db
+
+# IDE & OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local tool configs
+.claude/settings.local.json
