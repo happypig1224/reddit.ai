@@ -31,6 +31,8 @@
 - [自动化测试矩阵](#自动化测试矩阵)
 - [核心 API 端点契约](#核心-api-端点契约)
 - [安全边界与异常处理](#安全边界与异常处理)
+- [相关专题文档](#相关专题文档)
+- [技术支持与开源协议](#技术支持与开源协议)
 
 ---
 
@@ -191,8 +193,13 @@ reddit.ai/
 │   ├── package.json                  # 前端依赖配置清单
 │   └── vite.config.js                # Vite 打包与代理配置
 │
-├── docs/                             # 静态文档与架构资源
-│   └── assets/                       # 架构示意图与系统运行全景截图
+├── docs/                             # 项目设计与专题文档
+│   ├── assets/                       # 架构示意图与系统运行全景截图
+│   ├── DEPLOYMENT_GUIDE.md           # 生产部署与运维指南
+│   ├── INTEGRATION_TEST_REPORT.md    # 集成测试验证报告
+│   ├── PROJECT_STATUS.md             # 交付状态与模块清单
+│   ├── QUICK_REFERENCE.md            # 开发者操作速查手册
+│   └── REDDIT_KARMA_PILOT_IMPLEMENTATION_PLAN.md # 详细技术实现方案
 │
 ├── migrations/                       # 结构化数据库迁移系统
 │   ├── V1.0.0__init_schema.sql       # 初始数据表结构
@@ -333,6 +340,18 @@ pytest -v
 2. **频率限制与断路器机制**：当目标 Reddit 接口抛出 `429 Too Many Requests` 时，系统自动触发熔断状态，暂停对应账号的排期分发，防止账号被平台判定为恶意灌水。
 3. **不可替代的人工审批点（Human-in-the-Loop）**：系统不对外提供无人值守的全自动批量发帖接口，所有评论生成建议必须由人工在工作台二次确认后方可排期。
 4. **非目标场景（Non-Goals）**：本系统不提供任何绕过目标平台反爬虫验证码的破解工具，不提供账号批量注册功能，不提供诱导破坏社区规则的黑帽功能。
+
+---
+
+## 相关专题文档
+
+| 文档名称 | 核心内容 | 目标受众 |
+| :--- | :--- | :--- |
+| [部署与运维指南](docs/DEPLOYMENT_GUIDE.md) | 生产环境配置、容器化与进程守护、监控告警配置 | SRE / 运维工程师 |
+| [系统集成测试报告](docs/INTEGRATION_TEST_REPORT.md) | 31 项 API 与数据库基线测试报告、执行耗时与断言结果 | QA / 测试工程师 |
+| [项目现状与交付指标](docs/PROJECT_STATUS.md) | 系统已实现模块、种子数据分布与功能完成度清单 | 研发负责人 / PM |
+| [开发速查手册](docs/QUICK_REFERENCE.md) | 常用 CLI 命令、SQL 常用排查语句与常见问题 FAQ | 开发者 |
+| [架构设计与实施方案](docs/REDDIT_KARMA_PILOT_IMPLEMENTATION_PLAN.md) | 详细技术方案、状态机数学推导与全域模型设计 | 架构师 / 资深研发 |
 
 ---
 
